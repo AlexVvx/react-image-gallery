@@ -2,6 +2,7 @@ import React from 'react';
 import Swipeable from 'react-swipeable';
 import throttle from 'lodash.throttle';
 import debounce from 'lodash.debounce';
+import url from 'url';
 
 const screenChangeEvents = [
   'fullscreenchange',
@@ -22,7 +23,10 @@ export default class ImageGallery extends React.Component {
       thumbnailsWrapperWidth: 0,
       thumbnailsWrapperHeight: 0,
       isFullscreen: false,
-      isPlaying: false
+      isPlaying: false,
+      isZoomed: false,
+      zoomedImageLeft: 0,
+      zoomedImageTop: 0
     };
 
     if (props.lazyLoad) {
@@ -45,6 +49,7 @@ export default class ImageGallery extends React.Component {
     disableThumbnailScroll: React.PropTypes.bool,
     disableArrowKeys: React.PropTypes.bool,
     disableSwipe: React.PropTypes.bool,
+    showZoom: React.PropTypes.string,
     useBrowserFullscreen: React.PropTypes.bool,
     defaultImage: React.PropTypes.string,
     indexSeparator: React.PropTypes.string,
@@ -187,10 +192,14 @@ export default class ImageGallery extends React.Component {
                                 {trailing: false});
 
     this._handleResize = this._handleResize.bind(this);
+    this._moveZoomedImage = this._moveZoomedImage.bind(this);
+    this._debounceMoveZoomedImage = debounce(this._moveZoomedImage, 0);
     this._debounceResize = debounce(this._handleResize, 500);
     this._handleScreenChange = this._handleScreenChange.bind(this);
     this._handleKeyDown = this._handleKeyDown.bind(this);
     this._thumbnailDelay = 300;
+    this.viewPortWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    this.viewPortHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
   }
 
   componentDidMount() {
@@ -201,6 +210,9 @@ export default class ImageGallery extends React.Component {
     }
     if (!this.props.disableArrowKeys) {
       window.addEventListener('keydown', this._handleKeyDown);
+    }
+    if (this.props.showZoom) {
+      window.addEventListener('mousemove', this._debounceMoveZoomedImage);
     }
     window.addEventListener('resize', this._debounceResize);
     this._onScreenChangeEvent();
@@ -213,6 +225,9 @@ export default class ImageGallery extends React.Component {
 
     if (this._debounceResize) {
       window.removeEventListener('resize', this._debounceResize);
+    }
+    if (this.props.showZoom) {
+      window.removeEventListener('mousemove', this._debounceMoveZoomedImage);
     }
 
     this._offScreenChangeEvent();
@@ -311,7 +326,7 @@ export default class ImageGallery extends React.Component {
         this.setModalFullscreen(false);
       }
 
-      this.setState({isFullscreen: false});
+      this.setState({isFullscreen: false, isZoomed: false});
 
     }
   }
@@ -347,6 +362,36 @@ export default class ImageGallery extends React.Component {
 
   }
 
+  closeZoomImage() {
+    this.setState({ isZoomed: false });
+  }
+
+  openZoomImage() {
+    this.setState({ isZoomed: true });
+  }
+
+  toggleZoomImage() {
+    if (!this.state.isFullscreen) {
+      return;
+    }
+    if (this.state.isZoomed) {
+      this.closeZoomImage();
+    }
+    else {
+      this.openZoomImage();
+    }
+  }
+
+  handleZoomedImageLoaded(e) {
+    this.zoomedImageWidth = e.target.width;
+    this.zoomedImageHeight = e.target.height;
+  }
+
+  handleZoomedImageErrored() {
+    this.zoomedImageWidth = 0;
+    this.zoomedImageHeight = 0;
+  }
+
   getCurrentIndex() {
     return this.state.currentIndex;
   }
@@ -364,7 +409,7 @@ export default class ImageGallery extends React.Component {
       this.props.onScreenChange(fullScreenElement);
     }
 
-    this.setState({isFullscreen: !!fullScreenElement});
+    this.setState({isFullscreen: !!fullScreenElement, isZoomed: false});
   }
 
   _onScreenChangeEvent() {
@@ -423,6 +468,21 @@ export default class ImageGallery extends React.Component {
         }
       }
     }, 500);
+  }
+
+  _moveZoomedImage(e) {
+    let clientX = e.clientX || this.lastClientX || 0;
+    let clientY = e.clientY || this.lastClientY || 0;
+
+    this.lastClientX = clientX;
+    this.lastClientY = clientY;
+
+    let deltaX = Math.abs(this.viewPortWidth - this.zoomedImageWidth);
+    let deltaY = Math.abs(this.viewPortHeight - this.zoomedImageHeight);
+
+    let zoomedImageLeft = -(Math.floor((clientX / this.viewPortWidth) * deltaX) / 10) * 10;
+    let zoomedImageTop = -(Math.floor((clientY / this.viewPortHeight) * deltaY) / 10) * 10;
+    this.setState({zoomedImageLeft, zoomedImageTop});
   }
 
   _isThumbnailHorizontal() {
@@ -752,6 +812,18 @@ export default class ImageGallery extends React.Component {
     };
   }
 
+  _getZoomedImageStyle() {
+    let translate3d = `translate3d(${this.state.zoomedImageLeft}px, ${this.state.zoomedImageTop}px, 0) scale(1)`;
+
+    return {
+      WebkitTransform: translate3d,
+      MozTransform: translate3d,
+      msTransform: translate3d,
+      OTransform: translate3d,
+      transform: translate3d,
+    };
+  }
+
   _slideLeft(event) {
     this.slideToIndex(this.state.currentIndex - 1, event);
   }
@@ -766,12 +838,13 @@ export default class ImageGallery extends React.Component {
     return (
       <div className='image-gallery-image'>
         <img
-            src={item.original}
-            alt={item.originalAlt}
-            srcSet={item.srcSet}
-            sizes={item.sizes}
-            onLoad={this.props.onImageLoad}
-            onError={onImageError.bind(this)}
+          src={item.original}
+          alt={item.originalAlt}
+          srcSet={item.srcSet}
+          sizes={item.sizes}
+          onLoad={this.props.onImageLoad}
+          onError={onImageError.bind(this)}
+          onClick={event => this.toggleZoomImage.call(this, event)}
         />
         {
           item.description &&
@@ -813,6 +886,7 @@ export default class ImageGallery extends React.Component {
 
     const thumbnailStyle = this._getThumbnailStyle();
     const thumbnailPosition = this.props.thumbnailPosition;
+    const zoomedImageStyle = this._getZoomedImageStyle();
 
     const slideLeft = this._slideLeft.bind(this);
     const slideRight = this._slideRight.bind(this);
@@ -820,6 +894,8 @@ export default class ImageGallery extends React.Component {
     let slides = [];
     let thumbnails = [];
     let bullets = [];
+    let zoomedImage;
+    let zoomedImageUrl;
 
     this.props.items.map((item, index) => {
       const alignment = this._getAlignmentClassName(index);
@@ -851,6 +927,31 @@ export default class ImageGallery extends React.Component {
       );
 
       slides.push(slide);
+
+      if (index === this.state.currentIndex && this.props.showZoom) {
+        zoomedImageUrl = url.parse(item.original);
+        zoomedImageUrl.search = this.props.showZoom;
+        zoomedImage = (
+          <div
+            className={'image-gallery-image-zoomed' + (this.state.isZoomed&&this.state.isFullscreen ? '' : ' is-hidden')}
+          >
+            <img
+              src={zoomedImageUrl.format()}
+              onClick={event => this.toggleZoomImage.call(this, event)}
+              onLoad={event => this.handleZoomedImageLoaded.call(this, event)}
+              onError={this.handleZoomedImageErrored.bind(this)}
+              style={zoomedImageStyle}
+            />
+            <button
+              type='button'
+              className='image-gallery-image-zoomed-close-button'
+              aria-label='Close zoomed image'
+              onClick={event => this.closeZoomImage.call(this, event)}
+            >
+            </button>
+          </div>
+        );
+      }
 
       if (this.props.showThumbnails) {
         thumbnails.push(
@@ -923,21 +1024,22 @@ export default class ImageGallery extends React.Component {
                     {slides}
                   </div>
                 :
-                  <Swipeable
-                    className='image-gallery-swipe'
-                    key='swipeable'
-                    delta={1}
-                    onSwipingLeft={this._handleSwiping.bind(this, -1)}
-                    onSwipingRight={this._handleSwiping.bind(this, 1)}
-                    onSwiped={this._handleOnSwiped.bind(this)}
-                    onSwipedLeft={this._handleOnSwipedTo.bind(this, 1)}
-                    onSwipedRight={this._handleOnSwipedTo.bind(this, -1)}
-                    onSwipedDown={this._handleOnSwipedTo.bind(this, 0)}
-                    onSwipedUp={this._handleOnSwipedTo.bind(this, 0)}
-                  >
-                    <div className='image-gallery-slides'>
-                      {slides}
-                    </div>
+                <Swipeable
+                  className='image-gallery-swipe'
+                  key='swipeable'
+                  delta={1}
+                  onSwipingLeft={this._handleSwiping.bind(this, -1)}
+                  onSwipingRight={this._handleSwiping.bind(this, 1)}
+                  onSwiped={this._handleOnSwiped.bind(this)}
+                  onSwipedLeft={this._handleOnSwipedTo.bind(this, 1)}
+                  onSwipedRight={this._handleOnSwipedTo.bind(this, -1)}
+                  onSwipedDown={this._handleOnSwipedTo.bind(this, 0)}
+                  onSwipedUp={this._handleOnSwipedTo.bind(this, 0)}
+                >
+                  <div className={'image-gallery-slides' + (this.props.showZoom?' is-zoom-enabled':'')}>
+                    {slides}
+                  </div>
+                  {zoomedImage}
                 </Swipeable>
             ]
           :

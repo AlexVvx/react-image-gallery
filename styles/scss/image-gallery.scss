@@ -14,6 +14,10 @@ $ig-transparent: rgba(0, 0, 0, 0) !default;
   }
 }
 
+.is-hidden {
+  display: none;
+}
+
 .image-gallery {
   @include vendor-prefix('user-select', none);
   -webkit-tap-highlight-color: $ig-transparent;
@@ -68,7 +72,8 @@ $ig-transparent: rgba(0, 0, 0, 0) !default;
 .image-gallery-fullscreen-button,
 .image-gallery-play-button,
 .image-gallery-left-nav,
-.image-gallery-right-nav {
+.image-gallery-right-nav,
+.image-gallery-image-zoomed-close-button {
   appearance: none;
   background-color: transparent;
   border: 0;
@@ -229,6 +234,48 @@ $ig-transparent: rgba(0, 0, 0, 0) !default;
       padding: 8px 15px;
     }
 
+  }
+}
+
+.fullscreen .is-zoom-enabled .image-gallery-image {
+  cursor: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAwElEQVR4Ac3NPYoqYRCG0YP2OrrRNYzcRFBwV4ruw2By8WdJ0xqq8TiRUgNfcEGhRCbyVPo+lHc3sXN2c7Y19pzKp7i7pUquzL9N1ToaM5eSpCZl/gGAQUlGEjthCgjAXNhInIX6IegJR4mb0EH8P7rC9dmHBhCAvnCS2Aqzh2AhrCXGwsUAAP/8CEOpZUnmerr6FmW+IldZirtbCQcNuZGNo6uTtSEOwl7jZY290Kp5PWn/lny9nlBr8yBLau/rF9+yXcOGb3knAAAAAElFTkSuQmCC'), zoom-in;
+}
+
+.image-gallery-image-zoomed {
+  position: fixed;
+  z-index: 4;
+  top: 0;
+  cursor: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAu0lEQVR4Ac3NPWpCYRCG0YO6jnvRNUTSCAruStF9WKQXf5YUtVTrmEqZkFtEvmJCTOWZ9n0Yz25s6+zmbGPE7zreRHELHblm/mGi0lKbujRJatzMX9z1m2QosRUmSjNhLXEWKqWucJS4CS3Ez9EWrvIPaqWecJLYCFOlubCSGAkXfXevPoWB1KJJZrraeubNfCmn850UtxQOajlDa0dXJysDHIS92p/V9sJO9Uiy+1/y/khS2WVBnlSe1xe+OVnHtnHRAAAAAABJRU5ErkJggg=='), zoom-out;
+}
+
+.image-gallery-image-zoomed-close-button {
+  position: fixed;
+  top: 0;
+  right: 0;
+  padding: 24px;
+
+  &::before {
+    font-size: 2.7em;
+    padding: 0;
+    text-shadow: 0 1px 1px lighten($ig-black, 10%);
+    content: $ionicon-var-android-close;
+
+    @media (max-width: $ig-screen-sm-min) {
+      font-size: 2.4em;
+    }
+
+    @media (max-width: $ig-screen-xsm-min) {
+      font-size: 2em;
+    }
+  }
+
+  &:hover::before {
+    color: $ig-white;
+    transform: scale(1.1);
+
+    @media (max-width: $ig-screen-sm-min) {
+      transform: none;
+    }
   }
 }
 
